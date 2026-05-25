@@ -4,7 +4,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { todayInBerlin } from "@/lib/dates";
 import { z } from "zod";
 
-// Single-user mode: fixed user ID for personal Life OS
 const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 const journalEntrySchema = z.object({
@@ -21,7 +20,8 @@ export async function saveJournalEntry(formData: z.infer<typeof journalEntrySche
     const supabase = createAdminClient();
     const today = todayInBerlin();
 
-    // Ensure daily_entries exists for today
+    console.log("[Journal] Saving for date:", today);
+
     const { error: entryError } = await supabase
       .from("daily_entries")
       .upsert(
@@ -29,9 +29,11 @@ export async function saveJournalEntry(formData: z.infer<typeof journalEntrySche
         { onConflict: "user_id,date" }
       );
 
-    if (entryError) throw entryError;
+    if (entryError) {
+      console.error("[Journal] daily_entries error:", entryError);
+      return { success: false, error: `DB Error (daily_entries): ${entryError.message} | Code: ${entryError.code} | Details: ${entryError.details}` };
+    }
 
-    // Save journal entry
     const { error } = await supabase
       .from("journal_entries")
       .upsert(
@@ -47,12 +49,20 @@ export async function saveJournalEntry(formData: z.infer<typeof journalEntrySche
         { onConflict: "user_id,date" }
       );
 
-    if (error) throw error;
+    if (error) {
+      console.error("[Journal] journal_entries error:", error);
+      return { success: false, error: `DB Error (journal_entries): ${error.message} | Code: ${error.code}` };
+    }
 
     return { success: true };
   } catch (error) {
-    console.error("Failed to save journal entry:", error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    console.error("[Journal] Caught error:", error);
+    const errorMsg = error instanceof Error 
+      ? `${error.name}: ${error.message}` 
+      : typeof error === "object" 
+        ? JSON.stringify(error) 
+        : String(error);
+    return { success: false, error: errorMsg };
   }
 }
 
@@ -68,11 +78,14 @@ export async function loadTodayJournal() {
       .eq("date", today)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error("[Journal Load] Error:", error);
+      return null;
+    }
 
     return data || null;
   } catch (error) {
-    console.error("Failed to load journal entry:", error);
+    console.error("[Journal Load] Caught:", error);
     return null;
   }
 }

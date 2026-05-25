@@ -1,8 +1,11 @@
 ﻿"use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { todayInBerlin } from "@/lib/dates";
 import { z } from "zod";
+
+// Single-user mode: fixed user ID for personal Life OS
+const PERSONAL_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 const journalEntrySchema = z.object({
   wins: z.string().optional().default(""),
@@ -15,17 +18,14 @@ const journalEntrySchema = z.object({
 export async function saveJournalEntry(formData: z.infer<typeof journalEntrySchema>) {
   try {
     const validated = journalEntrySchema.parse(formData);
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const today = todayInBerlin();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
 
     // Ensure daily_entries exists for today
     const { error: entryError } = await supabase
       .from("daily_entries")
       .upsert(
-        { user_id: user.id, date: today },
+        { user_id: PERSONAL_USER_ID, date: today },
         { onConflict: "user_id,date" }
       );
 
@@ -36,7 +36,7 @@ export async function saveJournalEntry(formData: z.infer<typeof journalEntrySche
       .from("journal_entries")
       .upsert(
         {
-          user_id: user.id,
+          user_id: PERSONAL_USER_ID,
           date: today,
           wins: validated.wins,
           feelings: validated.feelings,
@@ -52,26 +52,23 @@ export async function saveJournalEntry(formData: z.infer<typeof journalEntrySche
     return { success: true };
   } catch (error) {
     console.error("Failed to save journal entry:", error);
-    return { success: false, error: String(error) };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
 export async function loadTodayJournal() {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const today = todayInBerlin();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
 
     const { data, error } = await supabase
       .from("journal_entries")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", PERSONAL_USER_ID)
       .eq("date", today)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== "PGRST116") throw error;
+    if (error) throw error;
 
     return data || null;
   } catch (error) {

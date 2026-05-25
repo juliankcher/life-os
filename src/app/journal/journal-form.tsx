@@ -12,7 +12,7 @@ interface JournalFormProps {
     needs?: string;
     gratitude?: string;
     tomorrow?: string;
-  };
+  } | null;
 }
 
 export function JournalForm({ initialData }: JournalFormProps) {
@@ -40,7 +40,7 @@ export function JournalForm({ initialData }: JournalFormProps) {
         setStatus("saved");
         setTimeout(() => setStatus("idle"), 3000);
       } else {
-        setError(result.error || "Failed to save");
+        setError(result.error || "Speichern fehlgeschlagen");
         setStatus("error");
       }
     });
@@ -49,84 +49,84 @@ export function JournalForm({ initialData }: JournalFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <label htmlFor="wins" className="block text-sm font-semibold mb-2">
-          🏆 Wins (Today)
+        <label htmlFor="wins" className="block text-base font-bold mb-2 text-slate-900">
+          🏆 Erfolge heute
         </label>
         <Textarea
           id="wins"
           name="wins"
           defaultValue={initialData?.wins || ""}
-          placeholder="What went well today?"
-          className="min-h-24"
+          placeholder="Was lief heute gut? Worauf bist du stolz?"
+          className="min-h-24 text-slate-900"
         />
       </div>
 
       <div>
-        <label htmlFor="feelings" className="block text-sm font-semibold mb-2">
-          💭 Feelings
+        <label htmlFor="feelings" className="block text-base font-bold mb-2 text-slate-900">
+          💭 Gefühle
         </label>
         <Textarea
           id="feelings"
           name="feelings"
           defaultValue={initialData?.feelings || ""}
-          placeholder="How did you feel?"
-          className="min-h-24"
+          placeholder="Wie hast du dich heute gefühlt?"
+          className="min-h-24 text-slate-900"
         />
       </div>
 
       <div>
-        <label htmlFor="needs" className="block text-sm font-semibold mb-2">
-          🎯 Needs
+        <label htmlFor="needs" className="block text-base font-bold mb-2 text-slate-900">
+          🎯 Bedürfnisse
         </label>
         <Textarea
           id="needs"
           name="needs"
           defaultValue={initialData?.needs || ""}
-          placeholder="What do you need?"
-          className="min-h-24"
+          placeholder="Was brauchst du gerade? Was fehlt dir?"
+          className="min-h-24 text-slate-900"
         />
       </div>
 
       <div>
-        <label htmlFor="gratitude" className="block text-sm font-semibold mb-2">
-          ✨ Gratitude
+        <label htmlFor="gratitude" className="block text-base font-bold mb-2 text-slate-900">
+          ✨ Dankbarkeit
         </label>
         <Textarea
           id="gratitude"
           name="gratitude"
           defaultValue={initialData?.gratitude || ""}
-          placeholder="What are you grateful for?"
-          className="min-h-24"
+          placeholder="Wofür bist du heute dankbar?"
+          className="min-h-24 text-slate-900"
         />
       </div>
 
       <div>
-        <label htmlFor="tomorrow" className="block text-sm font-semibold mb-2">
-          🌅 Tomorrow
+        <label htmlFor="tomorrow" className="block text-base font-bold mb-2 text-slate-900">
+          🌅 Morgen
         </label>
         <Textarea
           id="tomorrow"
           name="tomorrow"
           defaultValue={initialData?.tomorrow || ""}
-          placeholder="What do you want to focus on tomorrow?"
-          className="min-h-24"
+          placeholder="Worauf willst du dich morgen fokussieren?"
+          className="min-h-24 text-slate-900"
         />
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex gap-4 items-center">
         <Button
           type="submit"
           disabled={isPending}
           className="flex-1"
         >
-          {isPending ? "Saving..." : "Save Journal"}
+          {isPending ? "Speichere..." : "Journal speichern"}
         </Button>
         
         {status === "saved" && (
-          <div className="text-green-600 font-semibold self-center">✓ Saved!</div>
+          <div className="text-green-600 font-bold">✓ Gespeichert!</div>
         )}
         {status === "error" && (
-          <div className="text-red-600 font-semibold self-center">{error}</div>
+          <div className="text-red-600 font-bold text-sm">{error}</div>
         )}
       </div>
     </form>

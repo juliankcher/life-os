@@ -40,7 +40,7 @@ export default async function Home() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
           <Link
             href="/journal"
             className="bg-blue-500 text-white p-6 rounded-xl shadow-md hover:bg-blue-600 transition group"
@@ -51,12 +51,21 @@ export default async function Home() {
           </Link>
 
           <Link
+            href="/kalender"
+            className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-md hover:shadow-lg transition group"
+          >
+            <div className="text-3xl mb-2">🗓️</div>
+            <div className="text-xl font-bold mb-1">Kalender</div>
+            <div className="text-sm opacity-90">Termine planen</div>
+          </Link>
+
+          <Link
             href="/journal/uebersicht"
             className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition border border-slate-200 group"
           >
             <div className="text-3xl mb-2">📅</div>
-            <div className="text-xl font-bold mb-1 text-slate-900">Übersicht</div>
-            <div className="text-sm text-slate-600">Alle Einträge & Kalender</div>
+            <div className="text-xl font-bold mb-1 text-slate-900">Journal-Übersicht</div>
+            <div className="text-sm text-slate-600">Alle Einträge & Streaks</div>
           </Link>
 
           <Link
@@ -65,7 +74,7 @@ export default async function Home() {
           >
             <div className="text-3xl mb-2">📊</div>
             <div className="text-xl font-bold mb-1 text-slate-900">Dashboard</div>
-            <div className="text-sm text-slate-600">Kalender & Stats</div>
+            <div className="text-sm text-slate-600">Heute & Stats</div>
           </Link>
         </div>
 

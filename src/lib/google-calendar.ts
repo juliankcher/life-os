@@ -1,5 +1,6 @@
-import { google } from "googleapis";
-import { toZonedTime, formatInTimeZone } from "date-fns-tz";
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
+// @ts-ignore - node-ical has no types
+import ical from "node-ical";
 
 const BERLIN_TZ = "Europe/Berlin";
 
@@ -21,26 +22,96 @@ export interface CalendarEvent {
   htmlLink: string;
 }
 
-function getCalendarClient() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!raw) {
-    throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY not configured");
+function getIcsUrls(): { url: string; name: string }[] {
+  const urls: { url: string; name: string }[] = [];
+
+  // Primary calendar
+  const primary = process.env.GOOGLE_CALENDAR_ICS_URL;
+  if (primary) {
+    urls.push({ url: primary, name: "Julian" });
   }
 
-  let credentials;
+  // Additional calendars: GOOGLE_CALENDAR_ICS_URL_2, _3, etc.
+  for (let i = 2; i <= 10; i++) {
+    const url = process.env[`GOOGLE_CALENDAR_ICS_URL_${i}`];
+    const name = process.env[`GOOGLE_CALENDAR_NAME_${i}`] || `Kalender ${i}`;
+    if (url) urls.push({ url, name });
+  }
+
+  return urls;
+}
+
+async function fetchAndParseCalendar(url: string, name: string): Promise<CalendarEvent[]> {
   try {
-    const decoded = Buffer.from(raw, "base64").toString();
-    credentials = JSON.parse(decoded);
-  } catch {
-    credentials = JSON.parse(raw);
+    const response = await fetch(url, {
+      headers: { "User-Agent": "LifeOS/1.0" },
+      // 10 second timeout via AbortController
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      console.error(`[ICS] ${name} returned ${response.status}`);
+      return [];
+    }
+
+    const icsText = await response.text();
+    const parsed = ical.parseICS(icsText);
+
+    const events: CalendarEvent[] = [];
+    for (const key of Object.keys(parsed)) {
+      const item = parsed[key];
+      if (item.type !== "VEVENT") continue;
+
+      const start = item.start as Date;
+      const end = item.end as Date;
+      const isAllDay = (item as any).datetype === "date";
+
+      events.push({
+        id: item.uid || key,
+        summary: item.summary || "(Ohne Titel)",
+        description: item.description || undefined,
+        location: item.location || undefined,
+        calendarName: name,
+        calendarColor: undefined,
+        start: isAllDay
+          ? { date: start.toISOString().split("T")[0] }
+          : { dateTime: start.toISOString() },
+        end: isAllDay
+          ? { date: end.toISOString().split("T")[0] }
+          : { dateTime: end.toISOString() },
+        htmlLink: "",
+      });
+    }
+
+    return events;
+  } catch (error) {
+    console.error(`[ICS] Failed to fetch ${name}:`, error);
+    return [];
   }
+}
 
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+function filterEventsByDateRange(
+  events: CalendarEvent[],
+  start: Date,
+  end: Date
+): CalendarEvent[] {
+  return events.filter((e) => {
+    const eventStart = new Date(e.start.dateTime || e.start.date || "");
+    const eventEnd = new Date(e.end.dateTime || e.end.date || "");
+    // Event overlaps the range
+    return eventEnd >= start && eventStart <= end;
   });
+}
 
-  return google.calendar({ version: "v3", auth });
+async function fetchAllEvents(): Promise<CalendarEvent[]> {
+  const urls = getIcsUrls();
+  if (urls.length === 0) return [];
+
+  const results = await Promise.all(
+    urls.map(({ url, name }) => fetchAndParseCalendar(url, name))
+  );
+
+  return results.flat();
 }
 
 function getDayBoundsBerlin(date: Date) {
@@ -53,108 +124,41 @@ function getDayBoundsBerlin(date: Date) {
 
 export async function getTodayEvents(): Promise<CalendarEvent[]> {
   try {
-    const calendar = getCalendarClient();
+    const all = await fetchAllEvents();
     const { startOfDay, endOfDay } = getDayBoundsBerlin(new Date());
+    const filtered = filterEventsByDateRange(all, startOfDay, endOfDay);
 
-    const calendarsRes = await calendar.calendarList.list();
-    const calendars = calendarsRes.data.items || [];
-
-    if (calendars.length === 0) {
-      console.warn("[Calendar] No calendars accessible. Did you share your calendar with the service account?");
-      return [];
-    }
-
-    const allEvents: CalendarEvent[] = [];
-    for (const cal of calendars) {
-      if (!cal.id) continue;
-      try {
-        const response = await calendar.events.list({
-          calendarId: cal.id,
-          timeMin: startOfDay.toISOString(),
-          timeMax: endOfDay.toISOString(),
-          singleEvents: true,
-          orderBy: "startTime",
-        });
-
-        const events = (response.data.items || []).map((e) => ({
-          id: e.id || "",
-          summary: e.summary || "(Ohne Titel)",
-          description: e.description || undefined,
-          location: e.location || undefined,
-          calendarName: cal.summary || undefined,
-          calendarColor: cal.backgroundColor || undefined,
-          start: { dateTime: e.start?.dateTime || undefined, date: e.start?.date || undefined },
-          end: { dateTime: e.end?.dateTime || undefined, date: e.end?.date || undefined },
-          htmlLink: e.htmlLink || "",
-        }));
-        allEvents.push(...events);
-      } catch (err) {
-        console.error(`[Calendar] Error fetching ${cal.summary}:`, err);
-      }
-    }
-
-    allEvents.sort((a, b) => {
+    filtered.sort((a, b) => {
       const aTime = a.start.dateTime || a.start.date || "";
       const bTime = b.start.dateTime || b.start.date || "";
       return aTime.localeCompare(bTime);
     });
 
-    return allEvents;
+    return filtered;
   } catch (error) {
-    console.error("[Calendar] Failed:", error);
+    console.error("[Calendar] getTodayEvents failed:", error);
     return [];
   }
 }
 
 export async function getUpcomingEvents(daysAhead: number = 7): Promise<CalendarEvent[]> {
   try {
-    const calendar = getCalendarClient();
+    const all = await fetchAllEvents();
     const now = new Date();
     const end = new Date();
     end.setDate(end.getDate() + daysAhead);
 
-    const calendarsRes = await calendar.calendarList.list();
-    const calendars = calendarsRes.data.items || [];
+    const filtered = filterEventsByDateRange(all, now, end);
 
-    const allEvents: CalendarEvent[] = [];
-    for (const cal of calendars) {
-      if (!cal.id) continue;
-      try {
-        const response = await calendar.events.list({
-          calendarId: cal.id,
-          timeMin: now.toISOString(),
-          timeMax: end.toISOString(),
-          singleEvents: true,
-          orderBy: "startTime",
-          maxResults: 50,
-        });
-
-        const events = (response.data.items || []).map((e) => ({
-          id: e.id || "",
-          summary: e.summary || "(Ohne Titel)",
-          description: e.description || undefined,
-          location: e.location || undefined,
-          calendarName: cal.summary || undefined,
-          calendarColor: cal.backgroundColor || undefined,
-          start: { dateTime: e.start?.dateTime || undefined, date: e.start?.date || undefined },
-          end: { dateTime: e.end?.dateTime || undefined, date: e.end?.date || undefined },
-          htmlLink: e.htmlLink || "",
-        }));
-        allEvents.push(...events);
-      } catch (err) {
-        console.error(`[Calendar] Error fetching ${cal.summary}:`, err);
-      }
-    }
-
-    allEvents.sort((a, b) => {
+    filtered.sort((a, b) => {
       const aTime = a.start.dateTime || a.start.date || "";
       const bTime = b.start.dateTime || b.start.date || "";
       return aTime.localeCompare(bTime);
     });
 
-    return allEvents;
+    return filtered.slice(0, 50);
   } catch (error) {
-    console.error("[Calendar] Upcoming failed:", error);
+    console.error("[Calendar] getUpcomingEvents failed:", error);
     return [];
   }
 }
@@ -177,5 +181,23 @@ export function formatEventDate(event: CalendarEvent): string {
 }
 
 export function isCalendarConfigured(): boolean {
-  return !!process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  return !!process.env.GOOGLE_CALENDAR_ICS_URL;
+}
+
+export async function getEventsInRange(start: Date, end: Date): Promise<CalendarEvent[]> {
+  try {
+    const all = await fetchAllEvents();
+    const filtered = filterEventsByDateRange(all, start, end);
+
+    filtered.sort((a, b) => {
+      const aTime = a.start.dateTime || a.start.date || "";
+      const bTime = b.start.dateTime || b.start.date || "";
+      return aTime.localeCompare(bTime);
+    });
+
+    return filtered;
+  } catch (error) {
+    console.error("[Calendar] getEventsInRange failed:", error);
+    return [];
+  }
 }

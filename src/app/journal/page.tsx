@@ -19,6 +19,8 @@ export default async function JournalPage() {
         <nav className="mb-6 flex gap-3 flex-wrap">
           <Link href="/" className="text-slate-600 hover:text-slate-900 font-medium">← Home</Link>
           <span className="text-slate-400">|</span>
+          <Link href="/kalender" className="text-slate-600 hover:text-slate-900 font-medium">🗓️ Kalender</Link>
+          <span className="text-slate-400">|</span>
           <Link href="/journal/uebersicht" className="text-slate-600 hover:text-slate-900 font-medium">📅 Übersicht</Link>
           <span className="text-slate-400">|</span>
           <Link href="/dashboard" className="text-slate-600 hover:text-slate-900 font-medium">📊 Dashboard</Link>

@@ -42,6 +42,8 @@ export default async function DashboardPage() {
           <span className="text-slate-400">|</span>
           <Link href="/journal" className="text-slate-600 hover:text-slate-900 font-medium">📔 Journal</Link>
           <span className="text-slate-400">|</span>
+          <Link href="/kalender" className="text-slate-600 hover:text-slate-900 font-medium">🗓️ Kalender</Link>
+          <span className="text-slate-400">|</span>
           <Link href="/journal/uebersicht" className="text-slate-600 hover:text-slate-900 font-medium">📅 Übersicht</Link>
         </nav>
 

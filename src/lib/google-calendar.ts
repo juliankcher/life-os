@@ -57,20 +57,28 @@ async function fetchAndParseCalendar(url: string, name: string): Promise<Calenda
     const icsText = await response.text();
     const parsed = ical.parseICS(icsText);
 
+    // node-ical sometimes returns { val, params } objects for string fields
+    const toStr = (v: unknown): string => {
+      if (typeof v === "string") return v;
+      if (v && typeof v === "object" && "val" in v) return String((v as { val: unknown }).val);
+      return v == null ? "" : String(v);
+    };
+
     const events: CalendarEvent[] = [];
     for (const key of Object.keys(parsed)) {
-      const item = parsed[key];
-      if (item.type !== "VEVENT") continue;
+      const item = parsed[key] as Record<string, unknown> | undefined;
+      if (!item || item.type !== "VEVENT") continue;
 
-      const start = item.start as Date;
-      const end = item.end as Date;
-      const isAllDay = (item as any).datetype === "date";
+      const start = item.start as Date | undefined;
+      const end = (item.end || item.start) as Date | undefined;
+      if (!start || !end) continue;
+      const isAllDay = (item as { datetype?: string }).datetype === "date";
 
       events.push({
-        id: item.uid || key,
-        summary: item.summary || "(Ohne Titel)",
-        description: item.description || undefined,
-        location: item.location || undefined,
+        id: toStr(item.uid) || key,
+        summary: toStr(item.summary) || "(Ohne Titel)",
+        description: toStr(item.description) || undefined,
+        location: toStr(item.location) || undefined,
         calendarName: name,
         calendarColor: undefined,
         start: isAllDay

@@ -7,6 +7,7 @@ import {
   type CalendarEvent,
 } from "@/lib/google-calendar";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 export default async function DashboardPage() {

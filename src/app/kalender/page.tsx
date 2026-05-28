@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getEventsInRange, isCalendarConfigured, type CalendarEvent } from "@/lib/google-calendar";
 import { CalendarView } from "./calendar-view";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 export default async function KalenderPage({
